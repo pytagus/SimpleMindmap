@@ -1,45 +1,45 @@
 # SimpleMindmap
 
-SimpleMindmap est une application web intuitive et légère pour créer des cartes mentales. Elle offre une interface utilisateur simple et efficace pour organiser vos idées visuellement.
+SimpleMindmap is an intuitive and lightweight web application for creating mind maps. It offers a simple and efficient user interface to visually organize your ideas.
 
 ![SimpleMindmap Screenshot](screenshot.png)
 
-## Fonctionnalités
+## Features
 
-- **Création de nœuds** : Ajoutez facilement de nouveaux nœuds à votre carte mentale.
-- **Édition de texte** : Double-cliquez sur un nœud pour modifier son contenu.
-- **Connexions** : Reliez les nœuds entre eux pour établir des relations.
-- **Déplacement** : Faites glisser les nœuds pour réorganiser votre carte.
-- **Sélection multiple** : Sélectionnez plusieurs nœuds en dessinant une zone de sélection.
-- **Mode connexion** : Activez le mode connexion pour lier rapidement des nœuds.
-- **Suppression** : Supprimez des nœuds individuellement ou en groupe.
-- **Copier/Couper/Coller** : Utilisez les raccourcis clavier standard pour manipuler les nœuds.
-- **Sauvegarde automatique** : Votre travail est automatiquement sauvegardé dans le stockage local.
-- **Exportation/Importation** : Sauvegardez votre carte mentale dans un fichier et restaurez-la plus tard.
+- **Node Creation**: Easily add new nodes to your mind map.
+- **Text Editing**: Double-click on a node to edit its content.
+- **Connections**: Link nodes together to establish relationships.
+- **Moving**: Drag nodes to reorganize your map.
+- **Multiple Selection**: Select multiple nodes by drawing a selection area.
+- **Connection Mode**: Activate connection mode to quickly link nodes.
+- **Deletion**: Delete nodes individually or in groups.
+- **Copy/Cut/Paste**: Use standard keyboard shortcuts to manipulate nodes.
+- **Auto-save**: Your work is automatically saved in local storage.
+- **Export/Import**: Save your mind map to a file and restore it later.
 
-## Utilisation
+## Usage
 
-1. Cliquez sur "Add Node" pour créer un nouveau nœud racine.
-2. Utilisez le bouton "+" sur chaque nœud pour ajouter des nœuds enfants.
-3. Double-cliquez sur un nœud pour éditer son contenu.
-4. Faites glisser les nœuds pour les repositionner.
-5. Utilisez le bouton "Connect Mode" pour relier les nœuds entre eux.
-6. Sélectionnez plusieurs nœuds en dessinant une zone de sélection avec la souris.
-7. Utilisez les raccourcis clavier (Ctrl+C, Ctrl+X, Ctrl+V) pour copier, couper et coller des nœuds.
-8. Cliquez sur "Backup" pour exporter votre carte mentale.
-9. Utilisez "Restore" pour importer une carte mentale précédemment sauvegardée.
+1. Click "Add Node" to create a new root node.
+2. Use the "+" button on each node to add child nodes.
+3. Double-click a node to edit its content.
+4. Drag nodes to reposition them.
+5. Use the "Connect Mode" button to link nodes together.
+6. Select multiple nodes by drawing a selection area with the mouse.
+7. Use keyboard shortcuts (Ctrl+C, Ctrl+X, Ctrl+V) to copy, cut, and paste nodes.
+8. Click "Backup" to export your mind map.
+9. Use "Restore" to import a previously saved mind map.
 
-## Raccourcis clavier
+## Keyboard Shortcuts
 
-- `Ctrl + C` : Copier les nœuds sélectionnés
-- `Ctrl + X` : Couper les nœuds sélectionnés
-- `Ctrl + V` : Coller les nœuds copiés/coupés
-- `Delete` : Supprimer les nœuds sélectionnés
+- `Ctrl + C`: Copy selected nodes
+- `Ctrl + X`: Cut selected nodes
+- `Ctrl + V`: Paste copied/cut nodes
+- `Delete`: Delete selected nodes
 
-## Contribution
+## Contributing
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à soumettre une pull request.
+Contributions are welcome! Feel free to open an issue or submit a pull request.
 
-## Licence
+## License
 
-Ce projet est sous licence [MIT](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
