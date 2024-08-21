@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleMindmap</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #mindmap-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: #f5f5f5; /* Blanc cassé */
+        }
+        #mindmap {
+            width: 8000px;
+            height: 8000px;
+            position: relative;
+        }
+        #connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .node {
+            position: absolute;
+            background-color: white;
+            border: 2px solid #81d4fa;
+            border-radius: 5px;
+            padding: 10px;
+            min-width: 100px;
+            text-align: center;
+            cursor: move;
+            user-select: none;
+        }
+        .node-content {
+            margin-bottom: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .add-child {
+            font-size: 12px;
+            background-color: #FFA500; /* Orange */
+            color: white;
+            border: none;
+            padding: 2px 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        .selection-area {
+            position: absolute;
+            border: 2px dashed #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+            pointer-events: none;
+        }
+        #add-root-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #FFA500; /* Orange */
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .edit-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 5px;
+            border: 1px solid #81d4fa;
+            border-radius: 3px;
+            resize: vertical;
+            min-height: 50px;
+        }
+        #connect-mode-button {
+            position: fixed;
+            top: 60px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        #backup-button, #restore-button {
+            position: fixed;
+            left: 20px;
+            z-index: 1000;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        #backup-button {
+            top: 100px;
+            background-color: #4CAF50;
+        }
+        
+        #restore-button {
+            top: 140px;
+            background-color: #008CBA;
+        }
+        
+        .node.connecting {
+            border-color: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div id="mindmap-container">
+        <div id="mindmap">
+            <svg id="connections"></svg>
+        </div>
+    </div>
+    <button id="add-root-button" onclick="addRootNode()">Add Node</button>
+    <button id="connect-mode-button">Connect Mode</button>
+    <button id="backup-button">Backup</button>
+    <button id="restore-button">Restore</button>
+
+    <script>
+        let nodeId = 0;
+        let nodes = [];
+        let connections = [];
+        let isSelecting = false;
+        let selectionStart = { x: 0, y: 0 };
+        let selectionArea = null;
+        let selectedNodes = [];
+        let connectMode = false;
+        let firstSelectedNode = null;
+        let clipboard = [];
+        const mindmap = document.getElementById('mindmap');
+        const container = document.getElementById('mindmap-container');
+        const connectionssvg = document.getElementById('connections');
+        const STORAGE_KEY = 'mindmap_v1_data';
+
+        function createNode(x, y, text = "Nouveau nœud") {
+            nodeId++;
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.id = `node-${nodeId}`;
+            node.innerHTML = `
+                <div class="node-content">${text}</div>
+                <button class="add-child" data-nodeid="${nodeId}">+</button>
+            `;
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+            node.addEventListener('mousedown', startDragging);
+            node.addEventListener('contextmenu', deleteNode);
+            node.querySelector('.node-content').addEventListener('dblclick', editNodeText);
+            node.querySelector('.add-child').addEventListener('click', addChildNodeEvent);
+            return node;
+        }
+
+        function addRootNode() {
+            console.log("Ajout d'un nœud racine");
+            const rect = mindmap.getBoundingClientRect();
+            addNode(rect.width / 2 - 50, rect.height / 2 - 20);
+        }
+
+        function addNode(x, y, parentId = null, text = "New Node") {
+            console.log(`Ajout d'un nœud à (${x}, ${y})${parentId ? ` avec parent ${parentId}` : ''}`);
+            nodeId++;
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.id = `node-${nodeId}`;
+            node.innerHTML = `
+                <div class="node-content">${text}</div>
+                <button class="add-child" data-nodeid="${nodeId}">+</button>
+            `;
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+            attachNodeEvents(node);
+            mindmap.appendChild(node);
+            nodes.push(node);
+            if (parentId) {
+                const parentNode = document.getElementById(`node-${parentId}`);
+                if (parentNode) {
+                    connectNodes(parentNode, node);
+                } else {
+                    console.error(`Nœud parent ${parentId} non trouvé`);
+                }
+            }
+            saveState();
+            return node; // Retourner le nœud créé
+        }
+        
+        function attachNodeEvents(node) {
+            node.addEventListener('mousedown', startDragging);
+            node.addEventListener('contextmenu', deleteNodes);
+            node.querySelector('.node-content').addEventListener('dblclick', editNodeText);
+            node.querySelector('.add-child').addEventListener('click', addChildNodeEvent);
+            node.addEventListener('click', handleNodeClick);
+        }
+        
+        function toggleConnectMode() {
+            connectMode = !connectMode;
+            const button = document.getElementById('connect-mode-button');
+            button.textContent = connectMode ? 'Annuler Connexion' : 'Mode Connexion';
+            button.style.backgroundColor = connectMode ? '#f44336' : '#4CAF50';
+            
+            if (!connectMode) {
+                // Réinitialiser la sélection si on quitte le mode connexion
+                firstSelectedNode = null;
+                nodes.forEach(node => node.classList.remove('connecting'));
+            }
+        }
+        
+        function handleNodeClick(e) {
+            if (!connectMode) return;
+            
+            const node = e.target.closest('.node');
+            if (!node) return;
+        
+            if (!firstSelectedNode) {
+                firstSelectedNode = node;
+                node.classList.add('connecting');
+            } else if (firstSelectedNode !== node) {
+                connectNodes(firstSelectedNode, node);
+                firstSelectedNode.classList.remove('connecting');
+                firstSelectedNode = null;
+                toggleConnectMode(); // Désactiver le mode connexion après avoir connecté
+            }
+        }
+        
+        function connectNodes(parent, child) {
+            if (parent === child) {
+                console.error("Tentative de connexion d'un nœud à lui-même");
+                return;
+            }
+            
+            // Vérifier si la connexion existe déjà
+            const existingConnection = connections.find(conn =>
+                (conn.parent === parent && conn.child === child) ||
+                (conn.parent === child && conn.child === parent)
+            );
+        
+            if (existingConnection) {
+                console.error("Une connexion existe déjà entre ces nœuds");
+                return;
+            }
+        
+            console.log(`Connexion du nœud ${parent.id} au nœud ${child.id}`);
+            const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            connection.setAttribute('stroke', '#81d4fa');
+            connection.setAttribute('stroke-width', '3');
+            connectionssvg.appendChild(connection);
+            connections.push({ parent, child, element: connection });
+            updateConnections();
+            saveState();
+        }
+
+        function addChildNodeEvent(e) {
+            e.stopPropagation();
+            const parentId = parseInt(e.target.dataset.nodeid);
+            if (isNaN(parentId)) {
+                console.error("ID de nœud parent invalide");
+                return;
+            }
+            console.log(`Tentative d'ajout d'un nœud enfant au parent ${parentId}`);
+            const parentNode = document.getElementById(`node-${parentId}`);
+            if (parentNode) {
+                const parentRect = parentNode.getBoundingClientRect();
+                const x = parentNode.offsetLeft + parentRect.width + 50;
+                const y = parentNode.offsetTop;
+                addNode(x, y, parentId);
+            } else {
+                console.error(`Nœud parent ${parentId} non trouvé`);
+            }
+        }
+
+        function deleteNodes(e) {
+            e.preventDefault();
+            const nodesToDelete = selectedNodes.length > 0 ? selectedNodes : [e.target.closest('.node')];
+            
+            nodesToDelete.forEach(node => {
+                if (node) {
+                    const nodeId = node.id;
+                    // Supprimer les connexions liées à ce nœud
+                    connections = connections.filter(conn => {
+                        if (conn.parent.id === nodeId || conn.child.id === nodeId) {
+                            conn.element.remove();
+                            return false;
+                        }
+                        return true;
+                    });
+                    // Supprimer le nœud
+                    node.remove();
+                    nodes = nodes.filter(n => n.id !== nodeId);
+                }
+            });
+            
+            selectedNodes = [];
+            saveState();
+        }
+        
+        function copyNodes() {
+            const copiedNodes = selectedNodes.map(node => ({
+                id: node.id,
+                text: node.querySelector('.node-content').textContent,
+                x: node.offsetLeft,
+                y: node.offsetTop
+            }));
+        
+            const copiedConnections = connections.filter(conn =>
+                selectedNodes.includes(conn.parent) && selectedNodes.includes(conn.child)
+            ).map(conn => ({
+                parentId: conn.parent.id,
+                childId: conn.child.id
+            }));
+        
+            clipboard = { nodes: copiedNodes, connections: copiedConnections };
+        }
+        
+        function cutNodes() {
+            copyNodes();
+            deleteNodes(new Event('dummy'));
+        }
+        
+        function pasteNodes() {
+            if (!clipboard.nodes || clipboard.nodes.length === 0) return;
+        
+            const offset = { x: 20, y: 20 }; // Décalage pour les nœuds collés
+            const oldToNewIds = new Map();
+        
+            // Créer les nouveaux nœuds
+            clipboard.nodes.forEach(nodeData => {
+                const newNode = addNode(nodeData.x + offset.x, nodeData.y + offset.y, null, nodeData.text);
+                oldToNewIds.set(nodeData.id, newNode.id);
+            });
+        
+            // Recréer les connexions
+            clipboard.connections.forEach(conn => {
+                const newParentId = oldToNewIds.get(conn.parentId);
+                const newChildId = oldToNewIds.get(conn.childId);
+                if (newParentId && newChildId) {
+                    const parentNode = document.getElementById(newParentId);
+                    const childNode = document.getElementById(newChildId);
+                    connectNodes(parentNode, childNode);
+                }
+            });
+        
+            saveState();
+        }
+        
+        function handleKeyboardShortcuts(e) {
+            if (e.ctrlKey || e.metaKey) { // metaKey for Mac
+                switch(e.key) {
+                    case 'c':
+                        e.preventDefault();
+                        copyNodes();
+                        break;
+                    case 'x':
+                        e.preventDefault();
+                        cutNodes();
+                        break;
+                    case 'v':
+                        e.preventDefault();
+                        pasteNodes();
+                        break;
+                }
+            } else if (e.key === 'Delete') {
+                e.preventDefault();
+                deleteNodes(e);
+            }
+        }
+
+        function connectNodes(parent, child) {
+            if (parent === child) {
+                console.error("Tentative de connexion d'un nœud à lui-même");
+                return;
+            }
+            if (connections.some(conn => (conn.parent === parent && conn.child === child) || (conn.parent === child && conn.child === parent))) {
+                console.error("Une connexion existe déjà entre ces nœuds");
+                return;
+            }
+            console.log(`Connexion du nœud ${parent.id} au nœud ${child.id}`);
+            const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            connection.setAttribute('stroke', '#81d4fa');
+            connection.setAttribute('stroke-width', '3');
+            connectionssvg.appendChild(connection);
+            connections.push({ parent, child, element: connection });
+            updateConnections();
+        }
+        
+        function cleanupConnections() {
+            connections = connections.filter(conn => {
+                if (!document.body.contains(conn.parent) || !document.body.contains(conn.child)) {
+                    conn.element.remove();
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        function updateConnections() {
+            connections.forEach(conn => {
+                const parentRect = conn.parent.getBoundingClientRect();
+                const childRect = conn.child.getBoundingClientRect();
+                const parentCenter = {
+                    x: conn.parent.offsetLeft + parentRect.width / 2,
+                    y: conn.parent.offsetTop + parentRect.height / 2
+                };
+                const childCenter = {
+                    x: conn.child.offsetLeft + childRect.width / 2,
+                    y: conn.child.offsetTop + childRect.height / 2
+                };
+                
+                conn.element.setAttribute('x1', parentCenter.x);
+                conn.element.setAttribute('y1', parentCenter.y);
+                conn.element.setAttribute('x2', childCenter.x);
+                conn.element.setAttribute('y2', childCenter.y);
+            });
+        }
+
+        function startDragging(e) {
+            if (e.target.className === 'add-child' || e.target.className === 'edit-input') return;
+            const node = e.target.closest('.node');
+            const isSelected = selectedNodes.includes(node);
+            
+            if (!isSelected) {
+                selectedNodes = [node];
+                nodes.forEach(n => n.style.border = '2px solid #81d4fa');
+                node.style.border = '2px solid #007bff';
+            }
+            
+            const startX = e.clientX + container.scrollLeft;
+            const startY = e.clientY + container.scrollTop;
+            const offsets = selectedNodes.map(n => ({
+                node: n,
+                offsetX: startX - n.offsetLeft,
+                offsetY: startY - n.offsetTop
+            }));
+        
+            function dragMove(e) {
+                const currentX = e.clientX + container.scrollLeft;
+                const currentY = e.clientY + container.scrollTop;
+                offsets.forEach(({ node, offsetX, offsetY }) => {
+                    node.style.left = `${currentX - offsetX}px`;
+                    node.style.top = `${currentY - offsetY}px`;
+                });
+                updateConnections();
+            }
+        
+            function dragEnd() {
+                document.removeEventListener('mousemove', dragMove);
+                document.removeEventListener('mouseup', dragEnd);
+                saveState();
+            }
+        
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('mouseup', dragEnd);
+        }
+
+        function editNodeText(e) {
+            const nodeContent = e.target;
+            const currentText = nodeContent.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = currentText;
+            textarea.className = 'edit-input';
+            
+            function saveText() {
+                const newText = textarea.value.trim() || "New Node";
+                nodeContent.textContent = newText;
+                nodeContent.addEventListener('dblclick', editNodeText);
+                saveState();
+            }
+        
+            textarea.addEventListener('blur', saveText);
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    e.preventDefault();
+                    saveText();
+                    textarea.blur();
+                }
+            });
+        
+            nodeContent.innerHTML = '';
+            nodeContent.appendChild(textarea);
+            nodeContent.removeEventListener('dblclick', editNodeText);
+            textarea.focus();
+            textarea.select();
+        }
+        
+        function startSelection(e) {
+            if (e.target !== mindmap) return;
+            isSelecting = true;
+            selectionStart = {
+                x: e.clientX + container.scrollLeft,
+                y: e.clientY + container.scrollTop
+            };
+            selectionArea = document.createElement('div');
+            selectionArea.className = 'selection-area';
+            mindmap.appendChild(selectionArea);
+        }
+        
+        function updateSelection(e) {
+            if (!isSelecting) return;
+            const currentX = e.clientX + container.scrollLeft;
+            const currentY = e.clientY + container.scrollTop;
+            const left = Math.min(selectionStart.x, currentX);
+            const top = Math.min(selectionStart.y, currentY);
+            const width = Math.abs(currentX - selectionStart.x);
+            const height = Math.abs(currentY - selectionStart.y);
+            
+            selectionArea.style.left = `${left}px`;
+            selectionArea.style.top = `${top}px`;
+            selectionArea.style.width = `${width}px`;
+            selectionArea.style.height = `${height}px`;
+            
+            selectNodesInArea(left, top, width, height);
+        }
+        
+        function endSelection() {
+            isSelecting = false;
+            if (selectionArea) {
+                selectionArea.remove();
+                selectionArea = null;
+            }
+        }
+        
+        function backupState() {
+            const state = {
+                nodes: nodes.map(node => ({
+                    id: node.id,
+                    text: node.querySelector('.node-content').textContent,
+                    x: node.offsetLeft,
+                    y: node.offsetTop
+                })),
+                connections: connections.map(conn => ({
+                    parentId: conn.parent.id,
+                    childId: conn.child.id
+                }))
+            };
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+        
+        function restoreState() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            input.onchange = function(event) {
+                const file = event.target.files[0];
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const state = JSON.parse(event.target.result);
+                    loadStateFromBackup(state);
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        function loadStateFromBackup(state) {
+            // Effacer l'état actuel
+            nodes.forEach(node => node.remove());
+            connections.forEach(conn => conn.element.remove());
+            nodes = [];
+            connections = [];
+            nodeId = 0;
+        
+            // Recréer les nœuds
+            state.nodes.forEach(nodeData => {
+                nodeId = Math.max(nodeId, parseInt(nodeData.id.split('-')[1]));
+                const node = document.createElement('div');
+                node.className = 'node';
+                node.id = nodeData.id;
+                node.innerHTML = `
+                    <div class="node-content">${nodeData.text}</div>
+                    <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                `;
+                node.style.left = `${nodeData.x}px`;
+                node.style.top = `${nodeData.y}px`;
+                attachNodeEvents(node);
+                mindmap.appendChild(node);
+                nodes.push(node);
+            });
+        
+            // Recréer les connexions
+            state.connections.forEach(connData => {
+                const parent = document.getElementById(connData.parentId);
+                const child = document.getElementById(connData.childId);
+                if (parent && child && parent !== child) {
+                    connectNodes(parent, child);
+                }
+            });
+        
+            updateConnections();
+            cleanupConnections();
+            nodeId++; // Assure que le prochain ID sera unique
+            saveState(); // Sauvegarde l'état restauré dans le localStorage
+        }
+        
+        function selectNodesInArea(left, top, width, height) {
+            selectedNodes = nodes.filter(node => {
+                const rect = node.getBoundingClientRect();
+                const nodeLeft = node.offsetLeft;
+                const nodeTop = node.offsetTop;
+                const nodeRight = nodeLeft + rect.width;
+                const nodeBottom = nodeTop + rect.height;
+                return (nodeLeft < left + width &&
+                        nodeRight > left &&
+                        nodeTop < top + height &&
+                        nodeBottom > top);
+            });
+            
+            nodes.forEach(node => {
+                if (selectedNodes.includes(node)) {
+                    node.style.border = '2px solid #007bff';
+                } else {
+                    node.style.border = '2px solid #81d4fa';
+                }
+            });
+        }
+
+        function saveState() {
+            const state = {
+                nodes: nodes.map(node => ({
+                    id: node.id,
+                    text: node.querySelector('.node-content').textContent,
+                    x: node.offsetLeft,
+                    y: node.offsetTop
+                })),
+                connections: connections.map(conn => ({
+                    parentId: conn.parent.id,
+                    childId: conn.child.id
+                }))
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadState() {
+            const savedState = localStorage.getItem(STORAGE_KEY);
+            if (savedState) {
+                const state = JSON.parse(savedState);
+                // Effacer l'état actuel
+                nodes.forEach(node => node.remove());
+                connections.forEach(conn => conn.element.remove());
+                nodes = [];
+                connections = [];
+                nodeId = 0;
+        
+                // Recréer les nœuds
+                state.nodes.forEach(nodeData => {
+                    nodeId = Math.max(nodeId, parseInt(nodeData.id.split('-')[1]));
+                    const node = document.createElement('div');
+                    node.className = 'node';
+                    node.id = nodeData.id;
+                    node.innerHTML = `
+                        <div class="node-content">${nodeData.text}</div>
+                        <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                    `;
+                    node.style.left = `${nodeData.x}px`;
+                    node.style.top = `${nodeData.y}px`;
+                    attachNodeEvents(node);
+                    mindmap.appendChild(node);
+                    nodes.push(node);
+                });
+        
+                // Recréer les connexions
+                state.connections.forEach(connData => {
+                    const parent = document.getElementById(connData.parentId);
+                    const child = document.getElementById(connData.childId);
+                    if (parent && child && parent !== child) {
+                        connectNodes(parent, child);
+                    }
+                });
+        
+                updateConnections();
+                cleanupConnections();
+                nodeId++; // Assure que le prochain ID sera unique
+            }
+        }
+
+        // Centrer la vue initiale
+        container.scrollLeft = (mindmap.offsetWidth - container.offsetWidth) / 2;
+        container.scrollTop = (mindmap.offsetHeight - container.offsetHeight) / 2;
+
+        // Mettre à jour les connexions lors du défilement
+        container.addEventListener('scroll', updateConnections);
+
+        // Mettre à jour les connexions lors du redimensionnement de la fenêtre
+        window.addEventListener('resize', updateConnections);
+        
+        mindmap.addEventListener('mousedown', startSelection);
+        document.addEventListener('mousemove', updateSelection);
+        document.addEventListener('mouseup', endSelection);
+        document.getElementById('connect-mode-button').addEventListener('click', toggleConnectMode);
+        document.getElementById('backup-button').addEventListener('click', backupState);
+        document.getElementById('restore-button').addEventListener('click', restoreState);
+        document.addEventListener('keydown', handleKeyboardShortcuts);
+
+        // Charger l'état sauvegardé ou ajouter un nœud initial
+        loadState();
+        if (nodes.length === 0) {
+            addRootNode();
+        }
+
+        console.log("Application initialisée");
+    </script>
+</body>
+</html>
