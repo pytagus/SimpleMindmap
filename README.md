@@ -16,6 +16,9 @@ SimpleMindmap is an intuitive and lightweight web application for creating mind 
 - **Copy/Cut/Paste**: Use standard keyboard shortcuts to manipulate nodes.
 - **Auto-save**: Your work is automatically saved in local storage.
 - **Export/Import**: Save your mind map to a file and restore it later.
+- **Color Changing**: Modify the background color of selected nodes.
+- **Add Node with Text**: Create a new node with text from the clipboard.
+- **Connection Deletion**: Remove individual connections between nodes.
 
 ## Usage
 
@@ -28,6 +31,12 @@ SimpleMindmap is an intuitive and lightweight web application for creating mind 
 7. Use keyboard shortcuts (Ctrl+C, Ctrl+X, Ctrl+V) to copy, cut, and paste nodes.
 8. Click "Backup" to export your mind map.
 9. Use "Restore" to import a previously saved mind map.
+10. Use the color picker to change the background color of selected nodes.
+11. Click "Add Node with Text" to create a new node with text from the clipboard.
+12. Right-click on a connection to delete it.
+13. Press the "Delete" key to remove selected nodes.
+14. Use the mouse wheel or scroll bars to navigate a large mind map.
+15. Changes are automatically saved in the browser's local storage.
 
 ## Keyboard Shortcuts
 
