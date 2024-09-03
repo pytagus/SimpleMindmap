@@ -32,6 +32,15 @@
             height: 100%;
             pointer-events: none;
         }
+        
+        #connections line {
+            cursor: pointer;
+            stroke-width: 3;
+        }
+        
+        #connections line:hover {
+            stroke-width: 5;
+        }    
         .node {
             position: absolute;
             background-color: white;
@@ -118,8 +127,8 @@
             top: 21px;
             left: 140px;
             z-index: 1000;
-            width: 46px;
-            height: 46px;
+            width: 45px;
+            height: 45px;
             padding: 0;
             border: none;
             border-radius: 10%;
@@ -132,7 +141,7 @@
             top: 70px;
             left: 20px;
             z-index: 1000;
-            background-color: #FF4500; /* Orange rougeâtre */
+            background-color: #9b9b9b; /* Orange rougeâtre */
             border: none;
             color: white;
             padding: 10px 20px;
@@ -162,12 +171,12 @@
         }
         
         #backup-button {
-            top: 170px;
-            background-color: #4CAF50;
+            top: 200px;
+            background-color: #bf3838;
         }
         
         #restore-button {
-            top: 220px;
+            top: 250px;
             background-color: #008CBA;
         }
         
@@ -240,7 +249,9 @@
             node.id = `node-${nodeId}`;
             
             // Formater le texte pour qu'il se mette à la ligne tous les 50 caractères sans ajouter d'espaces
-            const formattedText = text.replace(/(.{1,50})(\s+|$)/g, "$1\n").trim();
+            const formattedText = text.split('\n').map(line => 
+                line.replace(/(.{1,50})(?: |$)/g, "$1\n").trim()
+            ).join('\n').trim();
             
             node.innerHTML = `
                 <div class="node-content">${formattedText}</div>
@@ -305,7 +316,7 @@
         function connectNodes(parent, child) {
             if (parent === child) {
                 console.error("Tentative de connexion d'un nœud à lui-même");
-                return;
+                return null;
             }
             
             // Vérifier si la connexion existe déjà
@@ -316,17 +327,20 @@
         
             if (existingConnection) {
                 console.error("Une connexion existe déjà entre ces nœuds");
-                return;
+                return null;
             }
         
-            console.log(`Connexion du nœud ${parent.id} au nœud ${child.id}`);
             const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             connection.setAttribute('stroke', '#81d4fa');
             connection.setAttribute('stroke-width', '3');
+            connection.style.pointerEvents = 'auto'; // Rend la ligne cliquable
+            connection.addEventListener('contextmenu', deleteConnection);
             connectionssvg.appendChild(connection);
-            connections.push({ parent, child, element: connection });
+            const connectionObj = { parent, child, element: connection };
+            connections.push(connectionObj);
             updateConnections();
             saveState();
+            return connectionObj;
         }
 
         function addChildNodeEvent(e) {
@@ -345,6 +359,24 @@
                 addNode(x, y, parentId, "New Node", 'white');
             } else {
                 console.error(`Nœud parent ${parentId} non trouvé`);
+            }
+        }
+        
+        function deleteConnection(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const clickedLine = e.target;
+            const connectionIndex = connections.findIndex(conn => conn.element === clickedLine);
+            
+            if (connectionIndex !== -1) {
+                // Supprimer l'élément SVG
+                clickedLine.remove();
+                
+                // Supprimer la connexion du tableau
+                connections.splice(connectionIndex, 1);
+                
+                // Mettre à jour l'état
+                saveState();
             }
         }
 
@@ -489,6 +521,13 @@
                 return true;
             });
         }
+        
+        function removeSelectionArea() {
+            if (selectionArea) {
+                selectionArea.remove();
+                selectionArea = null;
+            }
+        }
 
         function updateConnections() {
             connections.forEach(conn => {
@@ -507,6 +546,8 @@
                 conn.element.setAttribute('y1', parentCenter.y);
                 conn.element.setAttribute('x2', childCenter.x);
                 conn.element.setAttribute('y2', childCenter.y);
+                conn.element.setAttribute('data-parent-id', conn.parent.id);
+                conn.element.setAttribute('data-child-id', conn.child.id);
             });
         }
 
@@ -551,16 +592,14 @@
 
         function editNodeText(e) {
             const nodeContent = e.target;
-            const currentText = nodeContent.textContent.replace(/\n/g, ''); // Supprime les sauts de ligne existants
+            const currentText = nodeContent.textContent;
             const textarea = document.createElement('textarea');
             textarea.value = currentText;
             textarea.className = 'edit-input';
             
             function saveText() {
-                const newText = textarea.value.trim() || "New Node";
-                // Formater le texte pour qu'il se mette à la ligne tous les 20 caractères sans ajouter d'espaces
-                const formattedText = newText.replace(/(.{1,50})(\s+|$)/g, "$1\n").trim();
-                nodeContent.textContent = formattedText;
+                const newText = textarea.value || "New Node";
+                nodeContent.textContent = newText;
                 nodeContent.style.textAlign = 'left';
                 nodeContent.addEventListener('dblclick', editNodeText);
                 saveState();
@@ -597,6 +636,7 @@
         
         function startSelection(e) {
             if (e.target !== mindmap) return;
+            removeSelectionArea();
             isSelecting = true;
             selectionStart = {
                 x: e.clientX + container.scrollLeft,
@@ -608,7 +648,7 @@
         }
         
         function updateSelection(e) {
-            if (!isSelecting) return;
+            if (!isSelecting || !selectionArea) return;
             const currentX = e.clientX + container.scrollLeft;
             const currentY = e.clientY + container.scrollTop;
             const left = Math.min(selectionStart.x, currentX);
@@ -626,10 +666,7 @@
         
         function endSelection() {
             isSelecting = false;
-            if (selectionArea) {
-                selectionArea.remove();
-                selectionArea = null;
-            }
+            removeSelectionArea();
         }
         
         function backupState() {
@@ -786,7 +823,9 @@
                     const parent = document.getElementById(connData.parentId);
                     const child = document.getElementById(connData.childId);
                     if (parent && child && parent !== child) {
-                        connectNodes(parent, child);
+                        const connection = connectNodes(parent, child);
+                        connection.element.style.pointerEvents = 'auto';
+                        connection.element.addEventListener('contextmenu', deleteConnection);
                     }
                 });
         
@@ -809,10 +848,12 @@
         mindmap.addEventListener('mousedown', startSelection);
         document.addEventListener('mousemove', updateSelection);
         document.addEventListener('mouseup', endSelection);
+        document.addEventListener('click', removeSelectionArea);
         document.getElementById('connect-mode-button').addEventListener('click', toggleConnectMode);
         document.getElementById('backup-button').addEventListener('click', backupState);
         document.getElementById('restore-button').addEventListener('click', restoreState);
         document.addEventListener('keydown', handleKeyboardShortcuts);
+        document.addEventListener('mouseleave', endSelection);
         document.getElementById('add-node-with-text-button').addEventListener('click', addNodeWithText);
         document.getElementById('color-picker').addEventListener('change', changeNodeColor);
         document.addEventListener('mousemove', function(e) {
