@@ -47,6 +47,7 @@
             margin-bottom: 5px;
             white-space: pre-wrap;
             word-wrap: break-word;
+            text-align: left; /* Aligne le texte à gauche */
         }
         .add-child {
             font-size: 12px;
@@ -82,20 +83,56 @@
             border-radius: 5px;
         }
         .edit-input {
-            width: 100%;
+            width: 200px; /* Augmenté pour plus d'espace */
+            height: 100px; /* Augmenté pour plus de lignes visibles */
             box-sizing: border-box;
             padding: 5px;
             border: 1px solid #81d4fa;
             border-radius: 3px;
-            resize: vertical;
-            min-height: 50px;
+            resize: both; /* Permet à l'utilisateur de redimensionner si nécessaire */
+            overflow: auto; /* Ajoute une barre de défilement si nécessaire */
+            font-size: 14px; /* Ajusté pour une meilleure lisibilité */
+            line-height: 1.4; /* Améliore l'espacement des lignes */
+            text-align: left;
         }
         #connect-mode-button {
             position: fixed;
-            top: 60px;
+            top: 120px;
             left: 20px;
             z-index: 1000;
             background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        #color-picker {
+            position: fixed;
+            top: 21px;
+            left: 140px;
+            z-index: 1000;
+            width: 46px;
+            height: 46px;
+            padding: 0;
+            border: none;
+            border-radius: 10%;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        #add-node-with-text-button {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #FF4500; /* Orange rougeâtre */
             border: none;
             color: white;
             padding: 10px 20px;
@@ -125,12 +162,12 @@
         }
         
         #backup-button {
-            top: 100px;
+            top: 170px;
             background-color: #4CAF50;
         }
         
         #restore-button {
-            top: 140px;
+            top: 220px;
             background-color: #008CBA;
         }
         
@@ -147,7 +184,9 @@
         </div>
     </div>
     <button id="add-root-button" onclick="addRootNode()">Add Node</button>
+    <button id="add-node-with-text-button">Add Node with Text</button>
     <button id="connect-mode-button">Connect Mode</button>
+    <input type="color" id="color-picker" value="#ffffff">
     <button id="backup-button">Backup</button>
     <button id="restore-button">Restore</button>
 
@@ -162,6 +201,8 @@
         let connectMode = false;
         let firstSelectedNode = null;
         let clipboard = [];
+        let mouseX = 0;
+        let mouseY = 0;
         const mindmap = document.getElementById('mindmap');
         const container = document.getElementById('mindmap-container');
         const connectionssvg = document.getElementById('connections');
@@ -191,18 +232,23 @@
             addNode(rect.width / 2 - 50, rect.height / 2 - 20);
         }
 
-        function addNode(x, y, parentId = null, text = "New Node") {
+        function addNode(x, y, parentId = null, text = "New Node", color = 'white') {
             console.log(`Ajout d'un nœud à (${x}, ${y})${parentId ? ` avec parent ${parentId}` : ''}`);
             nodeId++;
             const node = document.createElement('div');
             node.className = 'node';
             node.id = `node-${nodeId}`;
+            
+            // Formater le texte pour qu'il se mette à la ligne tous les 50 caractères sans ajouter d'espaces
+            const formattedText = text.replace(/(.{1,50})(\s+|$)/g, "$1\n").trim();
+            
             node.innerHTML = `
-                <div class="node-content">${text}</div>
+                <div class="node-content">${formattedText}</div>
                 <button class="add-child" data-nodeid="${nodeId}">+</button>
             `;
             node.style.left = `${x}px`;
             node.style.top = `${y}px`;
+            node.style.backgroundColor = color;
             attachNodeEvents(node);
             mindmap.appendChild(node);
             nodes.push(node);
@@ -215,7 +261,7 @@
                 }
             }
             saveState();
-            return node; // Retourner le nœud créé
+            return node;
         }
         
         function attachNodeEvents(node) {
@@ -296,7 +342,7 @@
                 const parentRect = parentNode.getBoundingClientRect();
                 const x = parentNode.offsetLeft + parentRect.width + 50;
                 const y = parentNode.offsetTop;
-                addNode(x, y, parentId);
+                addNode(x, y, parentId, "New Node", 'white');
             } else {
                 console.error(`Nœud parent ${parentId} non trouvé`);
             }
@@ -332,7 +378,8 @@
                 id: node.id,
                 text: node.querySelector('.node-content').textContent,
                 x: node.offsetLeft,
-                y: node.offsetTop
+                y: node.offsetTop,
+                color: node.style.backgroundColor
             }));
         
             const copiedConnections = connections.filter(conn =>
@@ -353,12 +400,31 @@
         function pasteNodes() {
             if (!clipboard.nodes || clipboard.nodes.length === 0) return;
         
-            const offset = { x: 20, y: 20 }; // Décalage pour les nœuds collés
             const oldToNewIds = new Map();
+        
+            // Calculer le centre des nœuds copiés
+            let centerX = 0;
+            let centerY = 0;
+            clipboard.nodes.forEach(node => {
+                centerX += node.x;
+                centerY += node.y;
+            });
+            centerX /= clipboard.nodes.length;
+            centerY /= clipboard.nodes.length;
+        
+            // Calculer le décalage pour centrer les nœuds collés sur la position de la souris
+            const offsetX = mouseX - centerX;
+            const offsetY = mouseY - centerY;
         
             // Créer les nouveaux nœuds
             clipboard.nodes.forEach(nodeData => {
-                const newNode = addNode(nodeData.x + offset.x, nodeData.y + offset.y, null, nodeData.text);
+                const newNode = addNode(
+                    nodeData.x + offsetX,
+                    nodeData.y + offsetY,
+                    null,
+                    nodeData.text,
+                    nodeData.color || 'white'
+                );
                 oldToNewIds.set(nodeData.id, newNode.id);
             });
         
@@ -374,6 +440,22 @@
             });
         
             saveState();
+        }
+        
+        function addNodeWithText() {
+            navigator.clipboard.readText().then(text => {
+                if (text) {
+                    console.log("Ajout d'un nœud avec le texte du presse-papier");
+                    const rect = mindmap.getBoundingClientRect();
+                    addNode(rect.width / 2 - 50, rect.height / 2 - 20, null, text);
+                } else {
+                    console.log("Le presse-papier est vide");
+                    alert("Le presse-papier est vide. Veuillez copier du texte avant d'utiliser cette fonction.");
+                }
+            }).catch(err => {
+                console.error("Erreur lors de la lecture du presse-papier:", err);
+                alert("Impossible de lire le contenu du presse-papier. Vérifiez les permissions de votre navigateur.");
+            });
         }
         
         function handleKeyboardShortcuts(e) {
@@ -396,24 +478,6 @@
                 e.preventDefault();
                 deleteNodes(e);
             }
-        }
-
-        function connectNodes(parent, child) {
-            if (parent === child) {
-                console.error("Tentative de connexion d'un nœud à lui-même");
-                return;
-            }
-            if (connections.some(conn => (conn.parent === parent && conn.child === child) || (conn.parent === child && conn.child === parent))) {
-                console.error("Une connexion existe déjà entre ces nœuds");
-                return;
-            }
-            console.log(`Connexion du nœud ${parent.id} au nœud ${child.id}`);
-            const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            connection.setAttribute('stroke', '#81d4fa');
-            connection.setAttribute('stroke-width', '3');
-            connectionssvg.appendChild(connection);
-            connections.push({ parent, child, element: connection });
-            updateConnections();
         }
         
         function cleanupConnections() {
@@ -487,14 +551,17 @@
 
         function editNodeText(e) {
             const nodeContent = e.target;
-            const currentText = nodeContent.textContent;
+            const currentText = nodeContent.textContent.replace(/\n/g, ''); // Supprime les sauts de ligne existants
             const textarea = document.createElement('textarea');
             textarea.value = currentText;
             textarea.className = 'edit-input';
             
             function saveText() {
                 const newText = textarea.value.trim() || "New Node";
-                nodeContent.textContent = newText;
+                // Formater le texte pour qu'il se mette à la ligne tous les 20 caractères sans ajouter d'espaces
+                const formattedText = newText.replace(/(.{1,50})(\s+|$)/g, "$1\n").trim();
+                nodeContent.textContent = formattedText;
+                nodeContent.style.textAlign = 'left';
                 nodeContent.addEventListener('dblclick', editNodeText);
                 saveState();
             }
@@ -513,6 +580,19 @@
             nodeContent.removeEventListener('dblclick', editNodeText);
             textarea.focus();
             textarea.select();
+        }
+        
+        function changeNodeColor() {
+            if (selectedNodes.length === 0) {
+                alert("Please select a node first.");
+                return;
+            }
+            
+            const color = document.getElementById('color-picker').value;
+            selectedNodes.forEach(node => {
+                node.style.backgroundColor = color;
+            });
+            saveState();
         }
         
         function startSelection(e) {
@@ -558,7 +638,8 @@
                     id: node.id,
                     text: node.querySelector('.node-content').textContent,
                     x: node.offsetLeft,
-                    y: node.offsetTop
+                    y: node.offsetTop,
+                    color: node.style.backgroundColor
                 })),
                 connections: connections.map(conn => ({
                     parentId: conn.parent.id,
@@ -611,6 +692,7 @@
                 `;
                 node.style.left = `${nodeData.x}px`;
                 node.style.top = `${nodeData.y}px`;
+                node.style.backgroundColor = nodeData.color || 'white'; // Ajoutez cette ligne
                 attachNodeEvents(node);
                 mindmap.appendChild(node);
                 nodes.push(node);
@@ -659,7 +741,8 @@
                     id: node.id,
                     text: node.querySelector('.node-content').textContent,
                     x: node.offsetLeft,
-                    y: node.offsetTop
+                    y: node.offsetTop,
+                    color: node.style.backgroundColor // Ajoutez cette ligne
                 })),
                 connections: connections.map(conn => ({
                     parentId: conn.parent.id,
@@ -692,6 +775,7 @@
                     `;
                     node.style.left = `${nodeData.x}px`;
                     node.style.top = `${nodeData.y}px`;
+                    node.style.backgroundColor = nodeData.color || 'white';
                     attachNodeEvents(node);
                     mindmap.appendChild(node);
                     nodes.push(node);
@@ -729,6 +813,12 @@
         document.getElementById('backup-button').addEventListener('click', backupState);
         document.getElementById('restore-button').addEventListener('click', restoreState);
         document.addEventListener('keydown', handleKeyboardShortcuts);
+        document.getElementById('add-node-with-text-button').addEventListener('click', addNodeWithText);
+        document.getElementById('color-picker').addEventListener('change', changeNodeColor);
+        document.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX + container.scrollLeft;
+            mouseY = e.clientY + container.scrollTop;
+        });
 
         // Charger l'état sauvegardé ou ajouter un nœud initial
         loadState();
