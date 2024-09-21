@@ -184,6 +184,22 @@
             border-color: #4CAF50;
             box-shadow: 0 0 10px #4CAF50;
         }
+        @media print {
+            #add-root-button,
+            #add-node-with-text-button,
+            #connect-mode-button,
+            #color-picker,
+            #backup-button,
+            #restore-button,
+            .add-child {
+                display: none !important;
+            }
+            
+            body, html, #mindmap-container, #mindmap {
+                background-color: white !important;
+                background: white !important;
+            }
+        }
     </style>
 </head>
 <body>
