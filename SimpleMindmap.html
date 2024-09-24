@@ -257,20 +257,15 @@
             addNode(rect.width / 2 - 50, rect.height / 2 - 20);
         }
 
-        function addNode(x, y, parentId = null, text = "New Node", color = 'white') {
+        function addNode(x, y, parentId = null, content = "New Node", color = 'white') {
             console.log(`Ajout d'un nœud à (${x}, ${y})${parentId ? ` avec parent ${parentId}` : ''}`);
             nodeId++;
             const node = document.createElement('div');
             node.className = 'node';
             node.id = `node-${nodeId}`;
             
-            // Formater le texte pour qu'il se mette à la ligne tous les 50 caractères sans ajouter d'espaces
-            const formattedText = text.split('\n').map(line => 
-                line.replace(/(.{1,50})(?: |$)/g, "$1\n").trim()
-            ).join('\n').trim();
-            
             node.innerHTML = `
-                <div class="node-content">${formattedText}</div>
+                <div class="node-content">${content}</div>
                 <button class="add-child" data-nodeid="${nodeId}">+</button>
             `;
             node.style.left = `${x}px`;
@@ -424,7 +419,7 @@
         function copyNodes() {
             const copiedNodes = selectedNodes.map(node => ({
                 id: node.id,
-                text: node.querySelector('.node-content').textContent,
+                html: node.querySelector('.node-content').innerHTML,
                 x: node.offsetLeft,
                 y: node.offsetTop,
                 color: node.style.backgroundColor
@@ -470,9 +465,10 @@
                     nodeData.x + offsetX,
                     nodeData.y + offsetY,
                     null,
-                    nodeData.text,
+                    '',  // Nous n'utilisons plus le texte ici
                     nodeData.color || 'white'
                 );
+                newNode.querySelector('.node-content').innerHTML = nodeData.html;  // Utiliser le HTML brut
                 oldToNewIds.set(nodeData.id, newNode.id);
             });
         
@@ -507,7 +503,10 @@
         }
         
         function handleKeyboardShortcuts(e) {
-            if (e.ctrlKey || e.metaKey) { // metaKey for Mac
+            // Ignorer les raccourcis si on est en train d'éditer un nœud
+            if (e.target.tagName === 'TEXTAREA') return;
+        
+            if (e.ctrlKey || e.metaKey) { // metaKey pour Mac
                 switch(e.key) {
                     case 'c':
                         e.preventDefault();
@@ -628,6 +627,13 @@
                     saveText();
                     textarea.blur();
                 }
+            });
+        
+            // Ajoutez cet événement pour gérer le collage
+            textarea.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const text = e.clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
             });
         
             nodeContent.innerHTML = '';
@@ -792,10 +798,10 @@
             const state = {
                 nodes: nodes.map(node => ({
                     id: node.id,
-                    text: node.querySelector('.node-content').textContent,
+                    html: node.querySelector('.node-content').innerHTML,
                     x: node.offsetLeft,
                     y: node.offsetTop,
-                    color: node.style.backgroundColor // Ajoutez cette ligne
+                    color: node.style.backgroundColor
                 })),
                 connections: connections.map(conn => ({
                     parentId: conn.parent.id,
@@ -823,7 +829,7 @@
                     node.className = 'node';
                     node.id = nodeData.id;
                     node.innerHTML = `
-                        <div class="node-content">${nodeData.text}</div>
+                        <div class="node-content">${nodeData.html}</div>
                         <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
                     `;
                     node.style.left = `${nodeData.x}px`;
