@@ -6,37 +6,51 @@ SimpleMindmap is an intuitive and lightweight web application for creating mind 
 
 ## Features
 
-- **Node Creation**: Easily add new nodes to your mind map.
-- **Text Editing**: Double-click on a node to edit its content.
-- **Connections**: Link nodes together to establish relationships.
-- **Moving**: Drag nodes to reorganize your map.
-- **Multiple Selection**: Select multiple nodes by drawing a selection area.
-- **Connection Mode**: Activate connection mode to quickly link nodes.
-- **Deletion**: Delete nodes individually or in groups.
-- **Copy/Cut/Paste**: Use standard keyboard shortcuts to manipulate nodes.
-- **Auto-save**: Your work is automatically saved in local storage.
-- **Export/Import**: Save your mind map to a file and restore it later.
-- **Color Changing**: Modify the background color of selected nodes.
-- **Add Node with Text**: Create a new node with text from the clipboard.
-- **Connection Deletion**: Remove individual connections between nodes.
+- Create and edit nodes with custom text
+- Drag and drop nodes to organize your mind map
+- Connect nodes to show relationships
+- Add child nodes to create hierarchies
+- Multi-select nodes for bulk actions
+- Copy, cut, and paste nodes
+- Undo and redo actions
+- Zoom in and out of the mind map
+- Pan across the mind map
+- Custom color picker for nodes
+- Calculator nodes for simple arithmetic operations
+- Backup and restore functionality
 
 ## Usage
 
-1. Click "Add Node" to create a new root node.
-2. Use the "+" button on each node to add child nodes.
-3. Double-click a node to edit its content.
-4. Drag nodes to reposition them.
-5. Use the "Connect Mode" button to link nodes together.
-6. Select multiple nodes by drawing a selection area with the mouse.
-7. Use keyboard shortcuts (Ctrl+C, Ctrl+X, Ctrl+V) to copy, cut, and paste nodes.
-8. Click "Backup" to export your mind map.
-9. Use "Restore" to import a previously saved mind map.
-10. Use the color picker to change the background color of selected nodes.
-11. Click "Add Node with Text" to create a new node with text from the clipboard.
-12. Right-click on a connection to delete it.
-13. Press the "Delete" key to remove selected nodes.
-14. Use the mouse wheel or scroll bars to navigate a large mind map.
-15. Changes are automatically saved in the browser's local storage.
+1. Open the HTML file in a modern web browser.
+2. Use the "Add Node" button to create new root nodes.
+3. Click the "+" button on existing nodes to add child nodes.
+4. Double-click a node to edit its content.
+5. Drag nodes to reposition them.
+6. Use the "Connect Mode" to create connections between nodes.
+7. Right-click on nodes or connections to delete them.
+8. Use the color picker to change node colors.
+9. Use keyboard shortcuts (Ctrl+C, Ctrl+X, Ctrl+V) for copy, cut, and paste operations.
+10. Click "Add Formula" to create a calculator node.
+
+## Calculator Nodes
+
+Calculator nodes allow you to perform simple arithmetic calculations. Here are some examples of formulas you can use:
+
+- Simple addition: `5 + 3`
+- Combination of operations: `(10 + 5) * 2 - 8 / 4`
+- Using decimals: `3.14 * 2 + 1.5`
+
+Note: The calculator does not support advanced mathematical functions or variables.
+
+## Backup and Restore
+
+- Use the "Backup" button to download a JSON file of your current mind map.
+- Use the "Restore" button to upload a previously saved JSON file and restore your mind map.
+
+## Browser Compatibility
+
+SimpleMindmap works best in modern web browsers such as Chrome, Firefox, Safari, and Edge.
+
 
 ## Keyboard Shortcuts
 
