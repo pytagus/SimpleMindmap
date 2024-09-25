@@ -604,10 +604,16 @@
                 // Mettre à jour le contenu du résultat
                 resultDiv.textContent = `Résultat: ${result}`;
                 
+                // Sauvegarder l'état après la mise à jour
+                saveState();
+                
             } catch (error) {
                 console.error("Erreur de calcul:", error);
                 // Afficher l'erreur dans le nœud
                 resultDiv.textContent = "Erreur de calcul";
+                
+                // Sauvegarder l'état même en cas d'erreur
+                saveState();
             }
         }
         
