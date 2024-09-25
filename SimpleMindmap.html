@@ -136,24 +136,6 @@
             cursor: pointer;
         }
         
-        #add-node-with-text-button {
-            position: fixed;
-            top: 70px;
-            left: 20px;
-            z-index: 1000;
-            background-color: #9b9b9b; /* Orange rougeâtre */
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 4px 2px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        
         #backup-button, #restore-button {
             position: fixed;
             left: 20px;
@@ -180,9 +162,53 @@
             background-color: #008CBA;
         }
         
+        #addCalculatorNode {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #02adbd;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
         .node.connecting {
             border-color: #4CAF50;
             box-shadow: 0 0 10px #4CAF50;
+        }
+        .calculator-node {
+          background-color: #f0f0f0;
+          border: 2px solid #007bff;
+        }
+        
+        .calculator-node input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: left;
+            font-family: inherit;
+            font-size: inherit;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .calculator-node .node-content {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .calculator-node .result {
+            font-weight: bold;
+            color: #28a745;
+            text-align: center;
         }
         @media print {
             #add-root-button,
@@ -209,7 +235,7 @@
         </div>
     </div>
     <button id="add-root-button" onclick="addRootNode()">Add Node</button>
-    <button id="add-node-with-text-button">Add Node with Text</button>
+    <button id="addCalculatorNode">Add Formula</button>
     <button id="connect-mode-button">Connect Mode</button>
     <input type="color" id="color-picker" value="#ffffff">
     <button id="backup-button">Backup</button>
@@ -289,9 +315,44 @@
         function attachNodeEvents(node) {
             node.addEventListener('mousedown', startDragging);
             node.addEventListener('contextmenu', deleteNodes);
-            node.querySelector('.node-content').addEventListener('dblclick', editNodeText);
-            node.querySelector('.add-child').addEventListener('click', addChildNodeEvent);
+            const nodeContent = node.querySelector('.node-content');
+            if (nodeContent) {
+                nodeContent.addEventListener('dblclick', editNodeText);
+            }
+            const addChildButton = node.querySelector('.add-child');
+            if (addChildButton) {
+                addChildButton.addEventListener('click', addChildNodeEvent);
+            }
             node.addEventListener('click', handleNodeClick);
+        }
+        
+        function findOrCreateResultNode(calculatorNode) {
+            // Chercher un nœud de résultat existant
+            let resultNode = connections.find(conn => conn.parent === calculatorNode && conn.child.dataset.type === 'result')?.child;
+            
+            if (!resultNode) {
+                // Créer un nouveau nœud de résultat s'il n'existe pas
+                const rect = calculatorNode.getBoundingClientRect();
+                const x = calculatorNode.offsetLeft + rect.width + 50;
+                const y = calculatorNode.offsetTop;
+                
+                resultNode = document.createElement('div');
+                resultNode.className = 'node';
+                resultNode.id = `node-${++nodeId}`;
+                resultNode.innerHTML = `
+                    <div class="node-content">Résultat</div>
+                    <button class="add-child" data-nodeid="${nodeId}">+</button>
+                `;
+                resultNode.style.left = `${x}px`;
+                resultNode.style.top = `${y}px`;
+                resultNode.dataset.type = 'result';
+                attachNodeEvents(resultNode);
+                mindmap.appendChild(resultNode);
+                nodes.push(resultNode);
+                connectNodes(calculatorNode, resultNode);
+            }
+            
+            return resultNode;
         }
         
         function toggleConnectMode() {
@@ -340,19 +401,42 @@
                 console.error("Une connexion existe déjà entre ces nœuds");
                 return null;
             }
-        
+            
             const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             connection.setAttribute('stroke', '#81d4fa');
             connection.setAttribute('stroke-width', '3');
-            connection.style.pointerEvents = 'auto'; // Rend la ligne cliquable
+            connection.style.pointerEvents = 'auto';
             connection.addEventListener('contextmenu', deleteConnection);
             connectionssvg.appendChild(connection);
             const connectionObj = { parent, child, element: connection };
             connections.push(connectionObj);
+            
+            // Mettre à jour les calculs après avoir établi la connexion
+            if (parent.dataset.type === 'calculator') {
+                setTimeout(() => updateCalculation(parent), 0);
+            }
+            if (child.dataset.type === 'calculator') {
+                setTimeout(() => updateCalculation(child), 0);
+            }
+            
             updateConnections();
             saveState();
             return connectionObj;
         }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        const debouncedUpdateCalculation = debounce(updateCalculation, 300);
 
         function addChildNodeEvent(e) {
             e.stopPropagation();
@@ -440,6 +524,100 @@
             deleteNodes(new Event('dummy'));
         }
         
+        // Fonction pour créer un nœud calculateur
+        function createCalculatorNode(x, y, formula = '') {
+            console.log("Ajout d'un nœud calculateur");
+            if (!x || !y) {
+                const rect = mindmap.getBoundingClientRect();
+                x = rect.width / 2 - 50;
+                y = rect.height / 2 - 20;
+            }
+        
+            nodeId++;
+            const node = document.createElement('div');
+            node.className = 'node calculator-node';
+            node.id = `node-${nodeId}`;
+            node.innerHTML = `
+                <div class="node-content">
+                    <input type="text" placeholder="Entrez une formule" value="${formula}">
+                    <hr style="margin: 5px 0;">
+                    <div class="result">Résultat: </div>
+                </div>
+                <button class="add-child" data-nodeid="${nodeId}">+</button>
+            `;
+            node.dataset.type = 'calculator';
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+        
+            attachNodeEvents(node);
+            
+            const input = node.querySelector('input');
+            input.addEventListener('input', () => debouncedUpdateCalculation(node));
+            
+            mindmap.appendChild(node);
+            nodes.push(node);
+            
+            return node;
+        }
+        
+        // Fonction pour mettre à jour le calcul
+        function updateCalculation(node) {
+            const input = node.querySelector('input');
+            const resultDiv = node.querySelector('.result');
+            
+            try {
+                // Récupérer les valeurs des nœuds connectés
+                const connectedValues = getConnectedValues(node);
+                
+                // Remplacer les variables dans la formule par les valeurs connectées
+                let formula = input.value;
+                connectedValues.forEach((value, index) => {
+                    formula = formula.replace(`$${index + 1}`, value);
+                });
+                
+                // Évaluer la formule
+                const result = evalFormula(formula);
+                
+                // Mettre à jour le contenu du résultat
+                resultDiv.textContent = `Résultat: ${result}`;
+                
+            } catch (error) {
+                console.error("Erreur de calcul:", error);
+                // Afficher l'erreur dans le nœud
+                resultDiv.textContent = "Erreur de calcul";
+            }
+        }
+        
+        function evalFormula(formula) {
+            // Liste des opérations autorisées
+            const allowedOps = ['+', '-', '*', '/', '(', ')', '.', ' '];
+            
+            // Vérifier si la formule ne contient que des chiffres et des opérations autorisées
+            if (!/^[\d\s+\-*/().]+$/.test(formula)) {
+                throw new Error("Formule non valide");
+            }
+            
+            // Évaluer la formule
+            let result = Function('"use strict";return (' + formula + ')')();
+            
+            // Arrondir le résultat à 7 décimales
+            return Number(result.toFixed(7));
+        }
+        
+        // Fonction pour obtenir les valeurs des nœuds connectés
+        function getConnectedValues(node) {
+            const connectedValues = [];
+            connections.forEach(conn => {
+                if (conn.child === node) {
+                    const parentContent = conn.parent.querySelector('.node-content');
+                    if (parentContent && conn.parent.dataset.type !== 'calculator' && conn.parent.dataset.type !== 'result') {
+                        connectedValues.push(parentContent.textContent.trim());
+                    }
+                }
+            });
+            return connectedValues;
+        }
+        
         function pasteNodes() {
             if (!clipboard.nodes || clipboard.nodes.length === 0) return;
         
@@ -484,22 +662,6 @@
             });
         
             saveState();
-        }
-        
-        function addNodeWithText() {
-            navigator.clipboard.readText().then(text => {
-                if (text) {
-                    console.log("Ajout d'un nœud avec le texte du presse-papier");
-                    const rect = mindmap.getBoundingClientRect();
-                    addNode(rect.width / 2 - 50, rect.height / 2 - 20, null, text);
-                } else {
-                    console.log("Le presse-papier est vide");
-                    alert("Le presse-papier est vide. Veuillez copier du texte avant d'utiliser cette fonction.");
-                }
-            }).catch(err => {
-                console.error("Erreur lors de la lecture du presse-papier:", err);
-                alert("Impossible de lire le contenu du presse-papier. Vérifiez les permissions de votre navigateur.");
-            });
         }
         
         function handleKeyboardShortcuts(e) {
@@ -693,13 +855,24 @@
         
         function backupState() {
             const state = {
-                nodes: nodes.map(node => ({
-                    id: node.id,
-                    text: node.querySelector('.node-content').textContent,
-                    x: node.offsetLeft,
-                    y: node.offsetTop,
-                    color: node.style.backgroundColor
-                })),
+                nodes: nodes.map(node => {
+                    const baseData = {
+                        id: node.id,
+                        x: node.offsetLeft,
+                        y: node.offsetTop,
+                        color: node.style.backgroundColor,
+                        type: node.dataset.type
+                    };
+                    
+                    if (node.dataset.type === 'calculator') {
+                        baseData.formula = node.querySelector('input').value;
+                        baseData.result = node.querySelector('.result').textContent;
+                    } else {
+                        baseData.content = node.querySelector('.node-content').innerHTML;
+                    }
+                    
+                    return baseData;
+                }),
                 connections: connections.map(conn => ({
                     parentId: conn.parent.id,
                     childId: conn.child.id
@@ -742,16 +915,34 @@
             // Recréer les nœuds
             state.nodes.forEach(nodeData => {
                 nodeId = Math.max(nodeId, parseInt(nodeData.id.split('-')[1]));
-                const node = document.createElement('div');
-                node.className = 'node';
-                node.id = nodeData.id;
-                node.innerHTML = `
-                    <div class="node-content">${nodeData.text}</div>
-                    <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
-                `;
+                let node;
+                if (nodeData.type === 'calculator') {
+                    node = document.createElement('div');
+                    node.className = 'node calculator-node';
+                    node.id = nodeData.id;
+                    node.innerHTML = `
+                        <div class="node-content">
+                            <input type="text" placeholder="Entrez une formule" value="${nodeData.formula}">
+                            <hr style="margin: 5px 0;">
+                            <div class="result">${nodeData.result}</div>
+                        </div>
+                        <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                    `;
+                    node.dataset.type = 'calculator';
+                    const input = node.querySelector('input');
+                    input.addEventListener('input', () => debouncedUpdateCalculation(node));
+                } else {
+                    node = document.createElement('div');
+                    node.className = 'node';
+                    node.id = nodeData.id;
+                    node.innerHTML = `
+                        <div class="node-content">${nodeData.content}</div>
+                        <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                    `;
+                }
                 node.style.left = `${nodeData.x}px`;
                 node.style.top = `${nodeData.y}px`;
-                node.style.backgroundColor = nodeData.color || 'white'; // Ajoutez cette ligne
+                node.style.backgroundColor = nodeData.color || 'white';
                 attachNodeEvents(node);
                 mindmap.appendChild(node);
                 nodes.push(node);
@@ -796,13 +987,24 @@
 
         function saveState() {
             const state = {
-                nodes: nodes.map(node => ({
-                    id: node.id,
-                    html: node.querySelector('.node-content').innerHTML,
-                    x: node.offsetLeft,
-                    y: node.offsetTop,
-                    color: node.style.backgroundColor
-                })),
+                nodes: nodes.map(node => {
+                    const baseData = {
+                        id: node.id,
+                        x: node.offsetLeft,
+                        y: node.offsetTop,
+                        color: node.style.backgroundColor,
+                        type: node.dataset.type
+                    };
+                    
+                    if (node.dataset.type === 'calculator') {
+                        baseData.formula = node.querySelector('input').value;
+                        baseData.result = node.querySelector('.result').textContent;
+                    } else {
+                        baseData.content = node.querySelector('.node-content').innerHTML;
+                    }
+                    
+                    return baseData;
+                }),
                 connections: connections.map(conn => ({
                     parentId: conn.parent.id,
                     childId: conn.child.id
@@ -810,7 +1012,7 @@
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
-
+        
         function loadState() {
             const savedState = localStorage.getItem(STORAGE_KEY);
             if (savedState) {
@@ -825,13 +1027,31 @@
                 // Recréer les nœuds
                 state.nodes.forEach(nodeData => {
                     nodeId = Math.max(nodeId, parseInt(nodeData.id.split('-')[1]));
-                    const node = document.createElement('div');
-                    node.className = 'node';
-                    node.id = nodeData.id;
-                    node.innerHTML = `
-                        <div class="node-content">${nodeData.html}</div>
-                        <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
-                    `;
+                    let node;
+                    if (nodeData.type === 'calculator') {
+                        node = document.createElement('div');
+                        node.className = 'node calculator-node';
+                        node.id = nodeData.id;
+                        node.innerHTML = `
+                            <div class="node-content">
+                                <input type="text" placeholder="Entrez une formule" value="${nodeData.formula}">
+                                <hr style="margin: 5px 0;">
+                                <div class="result">${nodeData.result}</div>
+                            </div>
+                            <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                        `;
+                        node.dataset.type = 'calculator';
+                        const input = node.querySelector('input');
+                        input.addEventListener('input', () => debouncedUpdateCalculation(node));
+                    } else {
+                        node = document.createElement('div');
+                        node.className = 'node';
+                        node.id = nodeData.id;
+                        node.innerHTML = `
+                            <div class="node-content">${nodeData.content}</div>
+                            <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                        `;
+                    }
                     node.style.left = `${nodeData.x}px`;
                     node.style.top = `${nodeData.y}px`;
                     node.style.backgroundColor = nodeData.color || 'white';
@@ -845,9 +1065,7 @@
                     const parent = document.getElementById(connData.parentId);
                     const child = document.getElementById(connData.childId);
                     if (parent && child && parent !== child) {
-                        const connection = connectNodes(parent, child);
-                        connection.element.style.pointerEvents = 'auto';
-                        connection.element.addEventListener('contextmenu', deleteConnection);
+                        connectNodes(parent, child);
                     }
                 });
         
@@ -876,11 +1094,14 @@
         document.getElementById('restore-button').addEventListener('click', restoreState);
         document.addEventListener('keydown', handleKeyboardShortcuts);
         document.addEventListener('mouseleave', endSelection);
-        document.getElementById('add-node-with-text-button').addEventListener('click', addNodeWithText);
         document.getElementById('color-picker').addEventListener('change', changeNodeColor);
         document.addEventListener('mousemove', function(e) {
             mouseX = e.clientX + container.scrollLeft;
             mouseY = e.clientY + container.scrollTop;
+        });
+        document.getElementById('addCalculatorNode').addEventListener('click', () => {
+            createCalculatorNode();
+            updateConnections(); // Ajout de cette ligne pour mettre à jour les connexions
         });
 
         // Charger l'état sauvegardé ou ajouter un nœud initial
