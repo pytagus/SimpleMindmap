@@ -184,20 +184,26 @@
             border-color: #4CAF50;
             box-shadow: 0 0 10px #4CAF50;
         }
+        
         .calculator-node {
           background-color: #f0f0f0;
           border: 2px solid #007bff;
+          min-width: 300px; /* Largeur minimale */
+          max-width: 500px; /* Largeur maximale */
+          width: auto; /* Permet l'adaptation automatique de la largeur */
         }
         
         .calculator-node input {
-            width: 100%;
-            border: none;
-            background: transparent;
-            text-align: left;
-            font-family: inherit;
-            font-size: inherit;
-            padding: 0;
-            margin: 0;
+          width: 100%;
+          border: none;
+          background: transparent;
+          text-align: left;
+          font-family: inherit;
+          font-size: inherit;
+          padding: 0;
+          margin: 0;
+          white-space: normal; /* Permet le retour à la ligne */
+          word-wrap: break-word; /* Permet la coupure des mots longs */
         }
         
         .calculator-node .node-content {
@@ -212,7 +218,7 @@
         }
         @media print {
             #add-root-button,
-            #add-node-with-text-button,
+            #addCalculatorNode,
             #connect-mode-button,
             #color-picker,
             #backup-button,
@@ -501,13 +507,23 @@
         }
         
         function copyNodes() {
-            const copiedNodes = selectedNodes.map(node => ({
-                id: node.id,
-                html: node.querySelector('.node-content').innerHTML,
-                x: node.offsetLeft,
-                y: node.offsetTop,
-                color: node.style.backgroundColor
-            }));
+            const copiedNodes = selectedNodes.map(node => {
+                const baseData = {
+                    id: node.id,
+                    html: node.querySelector('.node-content').innerHTML,
+                    x: node.offsetLeft,
+                    y: node.offsetTop,
+                    color: node.style.backgroundColor,
+                    type: node.dataset.type
+                };
+        
+                if (node.dataset.type === 'calculator') {
+                    baseData.formula = node.querySelector('input').value;
+                    baseData.result = node.querySelector('.result').textContent;
+                }
+        
+                return baseData;
+            });
         
             const copiedConnections = connections.filter(conn =>
                 selectedNodes.includes(conn.parent) && selectedNodes.includes(conn.child)
@@ -552,7 +568,14 @@
             attachNodeEvents(node);
             
             const input = node.querySelector('input');
-            input.addEventListener('input', () => debouncedUpdateCalculation(node));
+            input.addEventListener('input', () => {
+                debouncedUpdateCalculation(node);
+                saveState(); // Ajout de cette ligne pour sauvegarder immédiatement
+            });
+            input.addEventListener('blur', () => {
+                updateCalculation(node);
+                saveState(); // Sauvegarde également lors de la perte de focus
+            });
             
             mindmap.appendChild(node);
             nodes.push(node);
@@ -639,14 +662,25 @@
         
             // Créer les nouveaux nœuds
             clipboard.nodes.forEach(nodeData => {
-                const newNode = addNode(
-                    nodeData.x + offsetX,
-                    nodeData.y + offsetY,
-                    null,
-                    '',  // Nous n'utilisons plus le texte ici
-                    nodeData.color || 'white'
-                );
-                newNode.querySelector('.node-content').innerHTML = nodeData.html;  // Utiliser le HTML brut
+                let newNode;
+                if (nodeData.type === 'calculator') {
+                    newNode = createCalculatorNode(
+                        nodeData.x + offsetX,
+                        nodeData.y + offsetY,
+                        nodeData.formula
+                    );
+                    newNode.querySelector('.result').textContent = nodeData.result;
+                } else {
+                    newNode = addNode(
+                        nodeData.x + offsetX,
+                        nodeData.y + offsetY,
+                        null,
+                        '',
+                        nodeData.color
+                    );
+                    newNode.querySelector('.node-content').innerHTML = nodeData.html;
+                }
+                newNode.style.backgroundColor = nodeData.color; // Ajoutez cette ligne
                 oldToNewIds.set(nodeData.id, newNode.id);
             });
         
