@@ -314,6 +314,7 @@
                     console.error(`Nœud parent ${parentId} non trouvé`);
                 }
             }
+            updateAllCalculatorNodes(); // Ajout de cette ligne
             saveState();
             return node;
         }
@@ -417,13 +418,7 @@
             const connectionObj = { parent, child, element: connection };
             connections.push(connectionObj);
             
-            // Mettre à jour les calculs après avoir établi la connexion
-            if (parent.dataset.type === 'calculator') {
-                setTimeout(() => updateCalculation(parent), 0);
-            }
-            if (child.dataset.type === 'calculator') {
-                setTimeout(() => updateCalculation(child), 0);
-            }
+            updateAllCalculatorNodes(); // Ajout de cette ligne
             
             updateConnections();
             saveState();
@@ -503,6 +498,7 @@
             });
             
             selectedNodes = [];
+            updateAllCalculatorNodes(); // Ajout de cette ligne
             saveState();
         }
         
@@ -570,10 +566,12 @@
             const input = node.querySelector('input');
             input.addEventListener('input', () => {
                 debouncedUpdateCalculation(node);
+                updateAllCalculatorNodes(); // Ajout de cette ligne
                 saveState(); // Ajout de cette ligne pour sauvegarder immédiatement
             });
             input.addEventListener('blur', () => {
                 updateCalculation(node);
+                updateAllCalculatorNodes(); // Ajout de cette ligne
                 saveState(); // Sauvegarde également lors de la perte de focus
             });
             
@@ -603,6 +601,9 @@
                 
                 // Mettre à jour le contenu du résultat
                 resultDiv.textContent = `Résultat: ${result}`;
+                
+                // Mise à jour des nœuds de calcul en aval
+                updateDownstreamCalculatorNodes(node);
                 
                 // Sauvegarder l'état après la mise à jour
                 saveState();
@@ -639,12 +640,64 @@
             connections.forEach(conn => {
                 if (conn.child === node) {
                     const parentContent = conn.parent.querySelector('.node-content');
-                    if (parentContent && conn.parent.dataset.type !== 'calculator' && conn.parent.dataset.type !== 'result') {
-                        connectedValues.push(parentContent.textContent.trim());
+                    if (parentContent) {
+                        if (conn.parent.dataset.type === 'calculator') {
+                            // Pour les nœuds calculateurs, utiliser le résultat
+                            const resultDiv = conn.parent.querySelector('.result');
+                            const resultText = resultDiv.textContent.split(': ')[1];
+                            connectedValues.push(parseFloat(resultText) || 0);
+                        } else if (conn.parent.dataset.type !== 'result') {
+                            // Pour les autres nœuds, utiliser le contenu textuel
+                            connectedValues.push(parentContent.textContent.trim());
+                        }
                     }
                 }
             });
             return connectedValues;
+        }
+        
+        function updateAllCalculatorNodes() {
+            nodes.forEach(node => {
+                if (node.dataset.type === 'calculator') {
+                    updateCalculation(node);
+                }
+            });
+        }
+        
+        function updateDownstreamCalculatorNodes(startNode) {
+            const visited = new Set();
+            const queue = [startNode];
+
+            while (queue.length > 0) {
+                const currentNode = queue.shift();
+                visited.add(currentNode);
+
+                connections.forEach(conn => {
+                    if (conn.parent === currentNode && conn.child.dataset.type === 'calculator' && !visited.has(conn.child)) {
+                        updateCalculation(conn.child);
+                        queue.push(conn.child);
+                    }
+                });
+            }
+        }
+        
+        function editNodeText(e) {
+            const nodeContent = e.target;
+            const currentText = nodeContent.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = currentText;
+            textarea.className = 'edit-input';
+            
+            function saveText() {
+                const newText = textarea.value || "New Node";
+                nodeContent.textContent = newText;
+                nodeContent.style.textAlign = 'left';
+                nodeContent.addEventListener('dblclick', editNodeText);
+                saveState();
+                updateAllCalculatorNodes(); // Ajout de cette ligne
+            }
+
+            // ... reste de la fonction editNodeText ...
         }
         
         function pasteNodes() {
@@ -820,6 +873,7 @@
                 nodeContent.style.textAlign = 'left';
                 nodeContent.addEventListener('dblclick', editNodeText);
                 saveState();
+                updateAllCalculatorNodes(); // Ajout de cette ligne
             }
         
             textarea.addEventListener('blur', saveText);
