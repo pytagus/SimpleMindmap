@@ -106,7 +106,7 @@
         }
         #connect-mode-button {
             position: fixed;
-            top: 120px;
+            top: 170px;
             left: 20px;
             z-index: 1000;
             background-color: #4CAF50;
@@ -153,12 +153,12 @@
         }
         
         #backup-button {
-            top: 200px;
+            top: 250px;
             background-color: #bf3838;
         }
         
         #restore-button {
-            top: 250px;
+            top: 300px;
             background-color: #008CBA;
         }
         
@@ -232,6 +232,53 @@
                 background: white !important;
             }
         }
+
+        #addCryptoNode {
+            position: fixed;
+            top: 120px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #9c27b0;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .crypto-node {
+            background-color: #e1bee7;
+            border: 2px solid #9c27b0;
+            min-width: 140px;
+            max-width: 140px;
+            padding: 4px; /* Réduire le padding pour rendre le nœud moins haut */
+            height: auto; /* Permet au nœud de s'ajuster à son contenu */
+            min-height: 0; /* Supprime toute hauteur minimale */
+        }
+
+        .crypto-node input {
+            width: 70%;
+            margin-bottom: 5px;
+            padding: 2px 5px; /* Réduire le padding pour rendre les champs moins hauts */
+        }
+
+        .crypto-node .price {
+            font-weight: bold;
+            color: #4a148c;
+            margin-top: 2px; /* Ajouter un peu d'espace au-dessus du prix */
+        }
+
+        .crypto-node .node-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4px;
+        }
     </style>
 </head>
 <body>
@@ -246,6 +293,7 @@
     <input type="color" id="color-picker" value="#ffffff">
     <button id="backup-button">Backup</button>
     <button id="restore-button">Restore</button>
+    <button id="addCryptoNode">Add Crypto</button>
 
     <script>
         let nodeId = 0;
@@ -264,6 +312,10 @@
         const container = document.getElementById('mindmap-container');
         const connectionssvg = document.getElementById('connections');
         const STORAGE_KEY = 'mindmap_v1_data';
+
+        let cryptoPrices = {};
+        let lastFetchTime = 0;
+        const FETCH_INTERVAL = 60000; // 1 minute
 
         function createNode(x, y, text = "Nouveau nœud") {
             nodeId++;
@@ -516,6 +568,9 @@
                 if (node.dataset.type === 'calculator') {
                     baseData.formula = node.querySelector('input').value;
                     baseData.result = node.querySelector('.result').textContent;
+                } else if (node.dataset.type === 'crypto') {
+                    baseData.crypto = node.querySelector('.crypto-input').value;
+                    baseData.price = node.querySelector('.price').textContent;
                 }
         
                 return baseData;
@@ -642,12 +697,15 @@
                     const parentContent = conn.parent.querySelector('.node-content');
                     if (parentContent) {
                         if (conn.parent.dataset.type === 'calculator') {
-                            // Pour les nœuds calculateurs, utiliser le résultat
                             const resultDiv = conn.parent.querySelector('.result');
                             const resultText = resultDiv.textContent.split(': ')[1];
                             connectedValues.push(parseFloat(resultText) || 0);
+                        } else if (conn.parent.dataset.type === 'crypto') {
+                            const priceDiv = conn.parent.querySelector('.price');
+                            const priceText = priceDiv.textContent.split(': ')[1];
+                            const price = parseFloat(priceText.split(' ')[0]);
+                            connectedValues.push(price || 0);
                         } else if (conn.parent.dataset.type !== 'result') {
-                            // Pour les autres nœuds, utiliser le contenu textuel
                             connectedValues.push(parentContent.textContent.trim());
                         }
                     }
@@ -729,17 +787,24 @@
                         nodeData.formula
                     );
                     newNode.querySelector('.result').textContent = nodeData.result;
+                } else if (nodeData.type === 'crypto') {
+                    newNode = createCryptoNode(
+                        nodeData.x + offsetX,
+                        nodeData.y + offsetY
+                    );
+                    newNode.querySelector('.crypto-input').value = nodeData.crypto;
+                    newNode.querySelector('.price').textContent = nodeData.price;
+                    updateCryptoPrice(newNode); // Mettre à jour le prix immédiatement
                 } else {
                     newNode = addNode(
                         nodeData.x + offsetX,
                         nodeData.y + offsetY,
                         null,
-                        '',
+                        nodeData.html,
                         nodeData.color
                     );
-                    newNode.querySelector('.node-content').innerHTML = nodeData.html;
                 }
-                newNode.style.backgroundColor = nodeData.color; // Ajoutez cette ligne
+                newNode.style.backgroundColor = nodeData.color;
                 oldToNewIds.set(nodeData.id, newNode.id);
             });
         
@@ -961,6 +1026,9 @@
                     if (node.dataset.type === 'calculator') {
                         baseData.formula = node.querySelector('input').value;
                         baseData.result = node.querySelector('.result').textContent;
+                    } else if (node.dataset.type === 'crypto') {
+                        baseData.crypto = node.querySelector('.crypto-input').value;
+                        baseData.price = node.querySelector('.price').textContent;
                     } else {
                         baseData.content = node.querySelector('.node-content').innerHTML;
                     }
@@ -1025,6 +1093,20 @@
                     node.dataset.type = 'calculator';
                     const input = node.querySelector('input');
                     input.addEventListener('input', () => debouncedUpdateCalculation(node));
+                } else if (nodeData.type === 'crypto') {
+                    node = document.createElement('div');
+                    node.className = 'node crypto-node';
+                    node.id = nodeData.id;
+                    node.innerHTML = `
+                        <div class="node-content">
+                            <input type="text" class="crypto-input" value="${nodeData.crypto}" placeholder="Crypto (e.g., BTC, ETH)">
+                            <div class="price">${nodeData.price}</div>
+                        </div>
+                        <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                    `;
+                    node.dataset.type = 'crypto';
+                    const input = node.querySelector('.crypto-input');
+                    input.addEventListener('input', () => updateAllCryptoPrices());
                 } else {
                     node = document.createElement('div');
                     node.className = 'node';
@@ -1093,6 +1175,9 @@
                     if (node.dataset.type === 'calculator') {
                         baseData.formula = node.querySelector('input').value;
                         baseData.result = node.querySelector('.result').textContent;
+                    } else if (node.dataset.type === 'crypto') {
+                        baseData.crypto = node.querySelector('.crypto-input').value;
+                        baseData.price = node.querySelector('.price').textContent;
                     } else {
                         baseData.content = node.querySelector('.node-content').innerHTML;
                     }
@@ -1137,6 +1222,20 @@
                         node.dataset.type = 'calculator';
                         const input = node.querySelector('input');
                         input.addEventListener('input', () => debouncedUpdateCalculation(node));
+                    } else if (nodeData.type === 'crypto') {
+                        node = document.createElement('div');
+                        node.className = 'node crypto-node';
+                        node.id = nodeData.id;
+                        node.innerHTML = `
+                            <div class="node-content">
+                                <input type="text" class="crypto-input" value="${nodeData.crypto}" placeholder="Crypto (e.g., BTC, ETH)">
+                                <div class="price">${nodeData.price}</div>
+                            </div>
+                            <button class="add-child" data-nodeid="${nodeData.id.split('-')[1]}">+</button>
+                        `;
+                        node.dataset.type = 'crypto';
+                        const input = node.querySelector('.crypto-input');
+                        input.addEventListener('input', () => updateAllCryptoPrices());
                     } else {
                         node = document.createElement('div');
                         node.className = 'node';
@@ -1167,6 +1266,7 @@
                 cleanupConnections();
                 nodeId++; // Assure que le prochain ID sera unique
             }
+            updateAllCryptoPrices(); // Ajoutez cette ligne pour mettre à jour les prix après le chargement
         }
 
         // Centrer la vue initiale
@@ -1196,6 +1296,85 @@
         document.getElementById('addCalculatorNode').addEventListener('click', () => {
             createCalculatorNode();
             updateConnections(); // Ajout de cette ligne pour mettre à jour les connexions
+        });
+
+        // Fonction pour créer un nœud de cryptomonnaie
+        function createCryptoNode(x, y) {
+            console.log("Ajout d'un nœud de cryptomonnaie");
+            if (!x || !y) {
+                const rect = mindmap.getBoundingClientRect();
+                x = rect.width / 2 - 50;
+                y = rect.height / 2 - 20;
+            }
+
+            nodeId++;
+            const node = document.createElement('div');
+            node.className = 'node crypto-node';
+            node.id = `node-${nodeId}`;
+            node.innerHTML = `
+                <div class="node-content">
+                    <input type="text" class="crypto-input" value="BTC" placeholder="Crypto (e.g., BTC, ETH)">
+                    <div class="price">Prix: Chargement...</div>
+                </div>
+                <button class="add-child" data-nodeid="${nodeId}">+</button>
+            `;
+            node.dataset.type = 'crypto';
+            node.style.left = `${x}px`;
+            node.style.top = `${y}px`;
+
+            attachNodeEvents(node);
+            
+            const input = node.querySelector('.crypto-input');
+            input.addEventListener('input', () => {
+                updateCryptoPrice(node);  // Mise à jour immédiate pour ce nœud spécifique
+            });
+            
+            mindmap.appendChild(node);
+            nodes.push(node);
+            
+            updateAllCryptoPrices();
+            return node;
+        }
+
+        function updateCryptoPrice(node) {
+            const input = node.querySelector('.crypto-input');
+            const priceDiv = node.querySelector('.price');
+            const crypto = input.value.toUpperCase();
+
+            priceDiv.textContent = 'Prix: Chargement...';
+
+            const url = `https://min-api.cryptocompare.com/data/price?fsym=${crypto}&tsyms=USD`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.USD) {
+                        priceDiv.textContent = `Prix: ${data.USD} $`;
+                        cryptoPrices[crypto] = { USD: data.USD };  // Mettre à jour le cache local
+                    } else {
+                        priceDiv.textContent = 'Prix: Non disponible';
+                    }
+                    saveState();
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la récupération du prix de la crypto:', error);
+                    priceDiv.textContent = 'Prix: Erreur de chargement';
+                    saveState();
+                });
+        }
+
+        function updateAllCryptoPrices() {
+            const cryptoNodes = nodes.filter(node => node.dataset.type === 'crypto');
+            cryptoNodes.forEach(updateCryptoPrice);
+        }
+
+        // Ajouter cette ligne pour mettre à jour les prix toutes les minutes
+        setInterval(updateAllCryptoPrices, FETCH_INTERVAL);
+
+        // Ajouter l'événement pour le nouveau bouton
+        document.getElementById('addCryptoNode').addEventListener('click', () => {
+            createCryptoNode();
+            updateConnections();
         });
 
         // Charger l'état sauvegardé ou ajouter un nœud initial
